@@ -1,0 +1,2 @@
+Creatures-Of-Sonaria-Account-Manager
+Modern Roblox account manager for Creatures of Sonaria. Manage up to 15 accounts with comprehensive creature tracking including mutations, traits, and ages. Features quick launches, persistent storage, real-time creature counting, search functionality, detailed logs, and a responsive dark-themed single-window interface designed for competitive.
