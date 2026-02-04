@@ -2,14 +2,15 @@
 
 import os
 spec_root = os.path.abspath(SPECPATH)
+dist_dir = os.path.join(spec_root, 'dist', 'lite')
 
 block_cipher = None
 
 a = Analysis(
-    ['main.py', 'gui.py', 'account_manager.py', 'game_launcher.py'],
+    ['main_lite.py', 'gui_lite.py', 'account_manager.py', 'game_launcher.py', 'window_controller.py'],
     pathex=[spec_root],
     binaries=[],
-    datas=[('RobloxAccountManager.manifest', '.')],
+    datas=[('RobloxBotCOS.manifest', '.')],
     hiddenimports=[
         'selenium',
         'selenium.webdriver',
@@ -18,7 +19,6 @@ a = Analysis(
         'selenium.webdriver.chrome.service',
         'webdriver_manager',
         'webdriver_manager.chrome',
-        'psutil',
         'tkinter',
         'tkinter.ttk',
         'tkinter.messagebox',
@@ -26,7 +26,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['win32api', 'win32con', 'window_controller'],
+    excludes=[],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -42,7 +42,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='CosManagerLite',
+    name='RobloxAccountManager',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

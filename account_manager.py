@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from typing import List, Dict
 
 class Account:
@@ -8,21 +9,17 @@ class Account:
         self.password = password
         self.is_main = is_main
         self.status = "offline"  # offline, launching, online, error
-        self.creatures = [None] * 17  # 17 creature slots
     
     def to_dict(self):
         return {
             "username": self.username,
             "password": self.password,
-            "is_main": self.is_main,
-            "creatures": self.creatures
+            "is_main": self.is_main
         }
     
     @staticmethod
     def from_dict(data: dict):
-        account = Account(data["username"], data["password"], data.get("is_main", False))
-        account.creatures = data.get("creatures", [None] * 17)
-        return account
+        return Account(data["username"], data["password"], data.get("is_main", False))
 
 class AccountManager:
     def __init__(self, config_path: str = "config.json"):
@@ -36,9 +33,9 @@ class AccountManager:
             with open(self.config_path, 'r') as f:
                 return json.load(f)
         return {
+            "max_accounts": 5,
             "game_url": "https://www.roblox.com/games/5233782396/Creatures-of-Sonaria-Survive-Kaiju-Animals",
             "game_name": "Creatures of Sonaria",
-            "join_username": "",
             "accounts": [],
             "theme": "dark",
             "macros_enabled": False  # Disabled by default to reduce AV false positives
@@ -55,9 +52,17 @@ class AccountManager:
             self.accounts.append(Account.from_dict(acc_data))
     
     def add_account(self, username: str, password: str, is_main: bool = False) -> bool:
+        if len(self.accounts) >= self.config["max_accounts"]:
+            return False
+        
         # Check if account already exists
         if any(acc.username == username for acc in self.accounts):
             return False
+        
+        # Only one main account allowed
+        if is_main:
+            for acc in self.accounts:
+                acc.is_main = False
         
         self.accounts.append(Account(username, password, is_main))
         self.save_config()
