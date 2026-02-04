@@ -9,17 +9,21 @@ class Account:
         self.password = password
         self.is_main = is_main
         self.status = "offline"  # offline, launching, online, error
+        self.creatures = [None] * 17  # 17 creature slots
     
     def to_dict(self):
         return {
             "username": self.username,
             "password": self.password,
-            "is_main": self.is_main
+            "is_main": self.is_main,
+            "creatures": self.creatures
         }
     
     @staticmethod
     def from_dict(data: dict):
-        return Account(data["username"], data["password"], data.get("is_main", False))
+        account = Account(data["username"], data["password"], data.get("is_main", False))
+        account.creatures = data.get("creatures", [None] * 17)
+        return account
 
 class AccountManager:
     def __init__(self, config_path: str = "config.json"):
