@@ -6,10 +6,14 @@ from tkinter import ttk, messagebox, scrolledtext, filedialog
 from datetime import datetime
 import time
 import threading
+import json
+import requests
 from account_manager import AccountManager
 from game_launcher import GameLauncher
 
 APP_VERSION = "1.0.0"
+GITHUB_REPO = "VRHighLow/Creatures-Of-Sonaria-Account-Manager"
+GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 class RobloxBotGUI:
     def __init__(self):
@@ -61,6 +65,99 @@ class RobloxBotGUI:
             self.account_manager.save_config()
         except Exception:
             pass
+    
+    def _parse_version(self, version_str):
+        """Parse version string (e.g., '1.0.0') into tuple for comparison"""
+        try:
+            return tuple(map(int, version_str.strip('v').split('.')))
+        except Exception:
+            return (0, 0, 0)
+    
+    def check_for_updates(self):
+        """Check GitHub releases for newer version (runs in background thread)"""
+        try:
+            response = requests.get(GITHUB_API_URL, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                latest_version = data.get('tag_name', '').strip('v')
+                
+                if latest_version and self._parse_version(latest_version) > self._parse_version(APP_VERSION):
+                    # New version available
+                    self.root.after(0, lambda: self._show_update_prompt(latest_version, data.get('html_url', '')))
+        except Exception as e:
+            # Silently fail - don't interrupt user experience
+            pass
+    
+    def _show_update_prompt(self, new_version, release_url):
+        """Show update available dialog"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Update Available")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.colors["panel"])
+        
+        # Center on parent window
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Content
+        frame = tk.Frame(dialog, bg=self.colors["panel"])
+        frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(frame, text="Update Available!", bg=self.colors["panel"], fg=self.colors["accent"],
+            font=('Segoe UI', 14, 'bold')).pack(pady=(0, 10))
+        
+        tk.Label(frame, text=f"A new version ({new_version}) is available.",
+            bg=self.colors["panel"], fg=self.colors["text"], font=('Segoe UI', 10)).pack(pady=5)
+        
+        tk.Label(frame, text=f"Current version: {APP_VERSION}", bg=self.colors["panel"],
+            fg=self.colors["muted"], font=('Segoe UI', 9)).pack(pady=5)
+        
+        # Buttons
+        btn_frame = tk.Frame(frame, bg=self.colors["panel"])
+        btn_frame.pack(fill='x', pady=(20, 0))
+        
+        tk.Button(btn_frame, text="Download", command=lambda: self._open_release(release_url),
+            bg=self.colors["accent"], fg='white', font=('Segoe UI', 10), relief='flat',
+            padx=20, pady=8, cursor='hand2').pack(side='left', padx=(0, 10))
+        
+        tk.Button(btn_frame, text="Remind Later", command=dialog.destroy,
+            bg=self.colors["panel_alt"], fg=self.colors["text"], font=('Segoe UI', 10),
+            relief='flat', padx=20, pady=8, cursor='hand2').pack(side='left')
+    
+    def _open_release(self, url):
+        """Open release page in browser"""
+        import webbrowser
+        webbrowser.open(url)
+    
+    def _manual_check_updates(self):
+        """Manual update check triggered by user button click"""
+        # Show loading message
+        messagebox.showinfo("Checking", "Checking for updates...")
+        
+        # Run check in background thread
+        def check_thread():
+            try:
+                response = requests.get(GITHUB_API_URL, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    latest_version = data.get('tag_name', '').strip('v')
+                    
+                    if latest_version:
+                        if self._parse_version(latest_version) > self._parse_version(APP_VERSION):
+                            # New version available
+                            self.root.after(0, lambda: self._show_update_prompt(latest_version, data.get('html_url', '')))
+                        else:
+                            # Already latest version
+                            self.root.after(0, lambda: messagebox.showinfo("Up to Date", f"You're running the latest version ({APP_VERSION})"))
+                    else:
+                        self.root.after(0, lambda: messagebox.showwarning("Error", "Could not determine latest version"))
+                else:
+                    self.root.after(0, lambda: messagebox.showerror("Error", "Failed to check for updates"))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Error", f"Update check failed: {str(e)}"))
+        
+        threading.Thread(target=check_thread, daemon=True).start()
     
     def setup_styles(self):
         style = ttk.Style()
@@ -461,6 +558,11 @@ class RobloxBotGUI:
                     bg=self.colors["danger"], fg='white', font=('Segoe UI', 10, 'bold'),
                     relief='flat', padx=18, pady=10, cursor='hand2')
         stop_all_btn.pack(side='left', padx=(0, 10))
+        
+        update_btn = tk.Button(right_section, text="⬇ Check Updates", command=self._manual_check_updates,
+                    bg=self.colors["muted"], fg='white', font=('Segoe UI', 10, 'bold'),
+                    relief='flat', padx=12, pady=10, cursor='hand2')
+        update_btn.pack(side='left')
         
         
     
@@ -1554,5 +1656,9 @@ class RobloxBotGUI:
     
     def run(self):
         """Start the GUI event loop"""
+        # Check for updates in background thread
+        update_thread = threading.Thread(target=self.check_for_updates, daemon=True)
+        update_thread.start()
+        
         self.root.mainloop()
 
