@@ -343,6 +343,46 @@ class GameLauncher:
         except Exception:
             pass
 
+    def _prune_player_pids(self, username: str) -> set[int]:
+        """Keep only live RobloxPlayer PIDs for the given username."""
+        alive: set[int] = set()
+        pids = self.player_pids.get(username, set())
+        for pid in list(pids):
+            try:
+                proc = psutil.Process(pid)
+                if proc.is_running():
+                    alive.add(pid)
+            except Exception:
+                continue
+
+        if alive:
+            self.player_pids[username] = alive
+        else:
+            if username in self.player_pids:
+                del self.player_pids[username]
+        return alive
+
+    def _is_account_running(self, username: str) -> bool:
+        """Return True if we still consider the account running."""
+        if username in self.drivers:
+            return True
+        return bool(self._prune_player_pids(username))
+
+    def _close_driver_async(self, username: str) -> None:
+        """Close the Selenium Chrome session without blocking the GUI."""
+        driver = self.drivers.pop(username, None)
+        if driver is None:
+            return
+
+        def _quit_driver(drv, user):
+            try:
+                drv.quit()
+            except Exception as e:
+                logging.info(f"{user}: driver.quit() error: {e}")
+
+        t = threading.Thread(target=_quit_driver, args=(driver, username), daemon=True)
+        t.start()
+
     @staticmethod
     def _snapshot_roblox_player_processes() -> dict[int, float]:
         """Return {pid: create_time} for RobloxPlayer* processes.
@@ -407,8 +447,8 @@ class GameLauncher:
             import time
             time.sleep(1)
         
-        # Check if already running
-        if account.username in self.drivers:
+        # Check if already running (driver or live RobloxPlayer PID)
+        if self._is_account_running(account.username):
             logging.info(f"{account.username}: Already running")
             if self.status_callback:
                 self.status_callback(account.username, "online")
@@ -591,6 +631,10 @@ class GameLauncher:
 
                 if self.status_callback:
                     self.status_callback(account.username, "online")
+
+                # Close the Chrome window once Roblox Player has been launched.
+                # We continue tracking RobloxPlayer PIDs so Stop still works.
+                self._close_driver_async(account.username)
                 return
             except Exception as e:
                 last_error = e
@@ -898,16 +942,7 @@ class GameLauncher:
         logging.info(f"{username}: Stopping...")
         
         # Close browser (non-blocking; Chrome quit can take ~10s and would freeze the GUI)
-        driver = self.drivers.pop(username, None)
-        if driver is not None:
-            def _quit_driver(drv, user):
-                try:
-                    drv.quit()
-                except Exception as e:
-                    logging.info(f"{user}: driver.quit() error: {e}")
-
-            t = threading.Thread(target=_quit_driver, args=(driver, username), daemon=True)
-            t.start()
+        self._close_driver_async(username)
         
         if self.status_callback:
             self.status_callback(username, "offline")
